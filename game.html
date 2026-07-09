@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Towers</title>
+<style>
+  :root {
+    --bg: #0f0f1a; --surface: #1e1e2f; --surface-hover: #2b2b40;
+    --primary: #ff4a4a; --secondary: #4a9eff; --accent: #a6e3a1;
+    --text: #cdd6f4; --text-muted: #7f849c; --border: #313244;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .container { background: var(--surface); padding: 24px; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 100%; }
+  h1 { font-size: 24px; font-weight: 600; text-transform: uppercase; background: linear-gradient(45deg, var(--primary), #9b51e0); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px; }
+
+  .menu-panel { display: flex; gap: 12px; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 8px; width: 100%; justify-content: center; }
+  .mode-btn { background: transparent; border: none; color: var(--text-muted); padding: 6px 12px; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+  .mode-btn.active { background: var(--border); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+  #status { font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 10px; height: 28px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px currentColor; }
+  .hint { color: var(--text-muted); font-size: 13px; text-align: center; min-height: 18px; }
+
+  .tools { display: flex; gap: 10px; width: 100%; }
+  .tool { flex: 1; background: var(--border); color: var(--text); border: 2px solid transparent; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; }
+  .tool:hover:not(:disabled) { background: var(--surface-hover); }
+  .tool.active { border-color: var(--accent); background: rgba(166, 227, 161, 0.1); }
+  .tool:disabled { opacity: 0.25; cursor: not-allowed; }
+  .tool span { font-size: 11px; opacity: 0.6; }
+
+  .grid-wrapper { position: relative; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(10, 42px); grid-template-rows: repeat(10, 42px); gap: 4px; }
+  .cell { width: 42px; height: 42px; background: var(--surface); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .cell:hover:not(.flag):not(.filled) { background: var(--surface-hover); transform: scale(1.05); z-index: 2; }
+  .cell.preview { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(166,227,161,0.05); }
+  .cell.badpreview { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(255,74,74,0.05); }
+
+  .cell.flag { cursor: default; animation: pulse 2s infinite alternate; }
+  .cell.flag-red { background: linear-gradient(135deg, #ff4a4a, #b32424); box-shadow: 0 0 15px rgba(255,74,74,0.4); }
+  .cell.flag-blue { background: linear-gradient(135deg, #4a9eff, #1a66b3); box-shadow: 0 0 15px rgba(74,158,255,0.4); }
+  .cell svg { width: 28px; height: 28px; animation: spawn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+  .reset { background: transparent; border: 2px solid var(--border); color: var(--text); padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
+  .reset:hover { background: var(--border); border-color: var(--text-muted); }
+
+  .title-row { display: flex; align-items: center; gap: 10px; }
+  .rules-btn { background: var(--border); color: var(--text); border: none; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .rules-btn:hover { background: var(--surface-hover); transform: scale(1.1); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; max-width: 460px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .modal h2 { font-size: 20px; margin-bottom: 16px; background: linear-gradient(45deg, var(--primary), #9b51e0); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .modal h3 { font-size: 14px; color: var(--accent); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .modal p, .modal li { font-size: 14px; line-height: 1.55; color: var(--text); }
+  .modal ul { padding-left: 20px; margin: 4px 0; }
+  .modal li { margin-bottom: 6px; }
+  .modal li b { color: var(--secondary); }
+  .modal .close { margin-top: 20px; width: 100%; background: var(--accent); color: #10221a; border: none; padding: 11px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .modal .close:hover { filter: brightness(1.08); }
+  .legend-icon { display: inline-block; width: 18px; text-align: center; }
+
+  @keyframes spawn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(0.96); opacity: 0.9; } }
+  @media (max-width: 480px) { .grid { grid-template-columns: repeat(10, 32px); grid-template-rows: repeat(10, 32px); gap: 3px; } .cell { width: 32px; height: 32px; } .cell svg { width: 22px; height: 22px; } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="title-row">
+    <h1>Towers</h1>
+    <button class="rules-btn" id="rulesBtn" title="Правила игры">?</button>
+  </div>
+  <div class="menu-panel">
+    <button class="mode-btn active" onclick="setMode('pvp')">👥 1 на 1</button>
+    <button class="mode-btn" onclick="setMode('ai')">🧠 ИИ Perfect Engine</button>
+  </div>
+  <div id="status"></div>
+  <div class="tools">
+    <button class="tool" data-tool="normal">🟢 Фигура <span>Безлимитно</span></button>
+    <button class="tool" data-tool="star">⭐ Звезда <span id="star-count">1 доступна</span></button>
+    <button class="tool" data-tool="wall">🧱 Стена <span id="wall-count">1 доступна</span></button>
+  </div>
+  <div class="hint" id="hint"></div>
+  <div class="grid-wrapper"><div class="grid" id="grid"></div></div>
+  <button class="reset" id="reset">Перезапустить матч</button>
+</div>
+
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <h2>Towers — правила</h2>
+
+    <h3>Цель</h3>
+    <p>Первым построить непрерывную цепочку из своих фигур, соединяющую ваш флаг с флагом соперника. Красный соединяет 🔴→🔵, синий — 🔵→🔴.</p>
+
+    <h3>Ход</h3>
+    <p>Игроки ходят по очереди. За ход вы ставите одну фигуру на любую свободную клетку (стена занимает 3 клетки сразу). Любую пустую клетку может занять любой игрок.</p>
+
+    <h3>Соединение</h3>
+    <ul>
+      <li>Свои фигуры считаются связанными, если стоят <b>рядом по горизонтали или вертикали</b>.</li>
+      <li>По <b>диагонали</b> связь работает только через <b>звезду</b> (хотя бы одна из двух соседних клеток — звезда).</li>
+      <li>Цепочка засчитана, когда она непрерывно тянется от одного флага до другого.</li>
+    </ul>
+
+    <h3>Фигуры</h3>
+    <ul>
+      <li><span class="legend-icon">🟢</span> <b>Фигура</b> — обычный элемент, ставится без ограничений.</li>
+      <li><span class="legend-icon">⭐</span> <b>Звезда</b> — 1 за партию. Даёт диагональные связи — путь может идти «наискосок».</li>
+      <li><span class="legend-icon">🧱</span> <b>Стена</b> — 1 за партию, занимает 3 клетки в ряд. Блокирует соперника. Клавиша <b>R</b> — повернуть стену. Свой путь стеной перекрывать нельзя.</li>
+    </ul>
+
+    <h3>Режимы</h3>
+    <ul>
+      <li><b>👥 1 на 1</b> — двое за одним экраном.</li>
+      <li><b>🧠 ИИ Perfect Engine</b> — вы играете красным против ИИ. Обыграть его очень трудно: он просчитывает партию наперёд, защищает свой путь и не даёт себя запереть.</li>
+    </ul>
+
+    <button class="close" id="rulesClose">Понятно, играем!</button>
+  </div>
+</div>
+
+<script>
+    const grid = document.getElementById('grid');
+    const statusEl = document.getElementById('status');
+    const hintEl = document.getElementById('hint');
+    const toolBtns = [...document.querySelectorAll('.tool')];
+
+    const RED_FLAG = 11, BLUE_FLAG = 88;
+    const flags = { [RED_FLAG]: 'red', [BLUE_FLAG]: 'blue' };
+    const COLORS = { red: '#ff4a4a', blue: '#4a9eff' };
+
+    let board, current, over, tool, gameMode = 'pvp', used, wallDir;
+
+    function circleSVG(){ return '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="10" fill="none" stroke="'+COLORS.red+'" stroke-width="4.5"/></svg>'; }
+    function crossSVG(){ return '<svg viewBox="0 0 32 32"><line x1="8" y1="8" x2="24" y2="24" stroke="'+COLORS.blue+'" stroke-width="4.5" stroke-linecap="round"/><line x1="24" y1="8" x2="8" y2="24" stroke="'+COLORS.blue+'" stroke-width="4.5" stroke-linecap="round"/></svg>'; }
+    function starSVG(color){ return '<svg viewBox="0 0 32 32"><polygon points="16,2 20,11 30,11 22,17 25,27 16,21 7,27 10,17 2,11 12,11" fill="'+color+'"/></svg>'; }
+    function wallSVG(color){ return '<svg viewBox="0 0 32 32"><rect x="2" y="2" width="28" height="28" rx="4" fill="'+color+'" opacity="0.8"/><line x1="2" y1="16" x2="30" y2="16" stroke="#0f0f1a" stroke-width="2"/><line x1="16" y1="2" x2="16" y2="16" stroke="#0f0f1a" stroke-width="2"/><line x1="9" y1="16" x2="9" y2="30" stroke="#0f0f1a" stroke-width="2"/><line x1="23" y1="16" x2="23" y2="30" stroke="#0f0f1a" stroke-width="2"/></svg>'; }
+
+    function rc(i){ return [Math.floor(i/10), i%10]; }
+    function orthNeighbors(i){
+      const [r,c] = rc(i); const res = [];
+      if (r>0) res.push(i-10); if (r<9) res.push(i+10);
+      if (c>0) res.push(i-1);  if (c<9) res.push(i+1);
+      return res;
+    }
+    function diagNeighbors(i){
+      const [r,c] = rc(i); const res = [];
+      if (r>0 && c>0) res.push(i-11); if (r>0 && c<9) res.push(i-9);
+      if (r<9 && c>0) res.push(i+9);  if (r<9 && c<9) res.push(i+11);
+      return res;
+    }
+
+    function linkedNeighbors(i, player, customBoard = board){
+      const res = [];
+      for (const n of orthNeighbors(i)) if (customBoard[n] && customBoard[n].owner === player) res.push(n);
+      const iIsStar = customBoard[i] && customBoard[i].type === 'star';
+      for (const n of diagNeighbors(i)){
+        if (customBoard[n] && customBoard[n].owner === player && (iIsStar || customBoard[n].type === 'star')) res.push(n);
+      }
+      return res;
+    }
+
+    // НАДЕЖНЫЙ ПОИСК ПУТЕЙ С ЗАЩИТОЙ ОТ ЗАЦИКЛИВАНИЯ
+    function touchesFlag(i, flag, customBoard = board){
+      if (orthNeighbors(i).includes(flag)) return true;
+      if (customBoard[i] && customBoard[i].type === 'star' && diagNeighbors(i).includes(flag)) return true;
+      return false;
+    }
+
+    function checkWin(player, customBoard = board){
+      const START_FLAG = player === 'red' ? RED_FLAG : BLUE_FLAG;
+      const END_FLAG = player === 'red' ? BLUE_FLAG : RED_FLAG;
+      const start = [];
+      for (let i=0; i<100; i++) if (customBoard[i] && customBoard[i].owner === player && touchesFlag(i, START_FLAG, customBoard)) start.push(i);
+      if (!start.length) return false;
+      const visited = new Set(start), queue = [...start];
+      while (queue.length){
+        const cur = queue.shift();
+        if (touchesFlag(cur, END_FLAG, customBoard)) return true;
+        for (const n of linkedNeighbors(cur, player, customBoard)) if (!visited.has(n)) { visited.add(n); queue.push(n); }
+      }
+      return false;
+    }
+
+    function getPathDistance(player, customBoard = board) {
+      const START_FLAG = player === 'red' ? RED_FLAG : BLUE_FLAG;
+      const END_FLAG = player === 'red' ? BLUE_FLAG : RED_FLAG;
+      const queue = []; const dist = new Array(100).fill(Infinity); const inQueue = new Set();
+      for (let i = 0; i < 100; i++) {
+        if (!customBoard[i] || customBoard[i].owner === player) {
+          if (touchesFlag(i, START_FLAG, customBoard)) { dist[i] = customBoard[i] ? 0 : 1; queue.push(i); inQueue.add(i); }
+        }
+      }
+      while (queue.length) {
+        const cur = queue.shift();
+        if (touchesFlag(cur, END_FLAG, customBoard)) return dist[cur];
+        for (const n of orthNeighbors(cur)) {
+          if (!customBoard[n] || customBoard[n].owner === player) {
+            const cost = customBoard[n] ? 0 : 1;
+            if (dist[cur] + cost < dist[n]) { dist[n] = dist[cur] + cost; if (!inQueue.has(n)) { queue.push(n); inQueue.add(n); } }
+          }
+        }
+      }
+      return Infinity;
+    }
+
+    function getShortestPathMissingCells(player, customBoard = board) {
+      const START_FLAG = player === 'red' ? RED_FLAG : BLUE_FLAG;
+      const END_FLAG = player === 'red' ? BLUE_FLAG : RED_FLAG;
+      const queue = []; const dist = new Array(100).fill(Infinity); const parent = new Array(100).fill(-1); const inQueue = new Set();
+      for (let i = 0; i < 100; i++) {
+        if (!customBoard[i] || customBoard[i].owner === player) {
+          if (touchesFlag(i, START_FLAG, customBoard)) { dist[i] = customBoard[i] ? 0 : 1; queue.push(i); inQueue.add(i); }
+        }
+      }
+      let endCell = -1;
+      while (queue.length) {
+        const cur = queue.shift();
+        if (touchesFlag(cur, END_FLAG, customBoard)) { endCell = cur; break; }
+        for (const n of orthNeighbors(cur)) {
+          if (!customBoard[n] || customBoard[n].owner === player) {
+            const cost = customBoard[n] ? 0 : 1;
+            if (dist[cur] + cost < dist[n]) { dist[n] = dist[cur] + cost; parent[n] = cur; if (!inQueue.has(n)) { queue.push(n); inQueue.add(n); } }
+          }
+        }
+      }
+      if (endCell === -1) return [];
+      const missing = []; let curr = endCell;
+      while (curr !== -1) { if (!customBoard[curr]) missing.push(curr); curr = parent[curr]; }
+      return missing;
+    }
+
+    // Дистанция соединения с УЧЁТОМ звёзд (диагональные переходы).
+    // Стоимость клетки = 0 если своя фигура уже стоит, иначе 1 (сколько
+    // ещё фигур нужно доставить). Возвращает минимальное число докладок.
+    // Использует 0-1 BFS (deque). Это ключевая метрика силы позиции.
+    function connectionCost(player, customBoard = board) {
+      const START_FLAG = player === 'red' ? RED_FLAG : BLUE_FLAG;
+      const END_FLAG = player === 'red' ? BLUE_FLAG : RED_FLAG;
+      const dist = new Array(100).fill(Infinity);
+      const deque = []; // элементы кладём в начало (cost 0) или конец (cost 1)
+
+      // Переход из клетки cur в соседа n разрешён, если n пустая или наша.
+      // Диагональный переход возможен, только если cur или n — звезда
+      // (существующая) ИЛИ пустая клетка, куда МОЖНО поставить звезду.
+      function canDiag(cur, n) {
+        const cs = customBoard[cur], ns = customBoard[n];
+        const curStar = cs ? cs.type === 'star' : true;  // пустую можно сделать звездой
+        const nStar   = ns ? ns.type === 'star' : true;
+        return curStar || nStar;
+      }
+
+      for (let i = 0; i < 100; i++) {
+        if (!customBoard[i] || customBoard[i].owner === player) {
+          if (touchesFlag(i, START_FLAG, customBoard)) {
+            const c = customBoard[i] ? 0 : 1;
+            if (c < dist[i]) { dist[i] = c; if (c === 0) deque.unshift(i); else deque.push(i); }
+          }
+        }
+      }
+      while (deque.length) {
+        const cur = deque.shift();
+        if (touchesFlag(cur, END_FLAG, customBoard)) return dist[cur];
+        const neigh = orthNeighbors(cur).concat(
+          diagNeighbors(cur).filter(n => canDiag(cur, n))
+        );
+        for (const n of neigh) {
+          if (customBoard[n] && customBoard[n].owner !== player) continue; // чужая фигура блокирует
+          const cost = customBoard[n] ? 0 : 1;
+          if (dist[cur] + cost < dist[n]) {
+            dist[n] = dist[cur] + cost;
+            if (cost === 0) deque.unshift(n); else deque.push(n);
+          }
+        }
+      }
+      return Infinity;
+    }
+
+    // Уязвимость пути к «запиранию»: сколько существует пустых клеток,
+    // перекрытие ЛЮБОЙ из которых соперником полностью убивает соединение
+    // игрока (бутылочные горлышки). Чем больше таких клеток — тем легче
+    // запереть игрока. Оцениваем только клетки вблизи кратчайшего пути,
+    // чтобы не перебирать всю доску. Возвращает счётчик «одиночных точек отказа».
+    function pathVulnerability(player, customBoard = board) {
+      if (connectionCost(player, customBoard) === Infinity) return 999;
+      // Кандидаты: клетки кратчайшего пути + их соседи.
+      const near = new Set();
+      for (const c of getShortestPathMissingCells(player, customBoard)) {
+        near.add(c);
+        for (const n of orthNeighbors(c)) if (!customBoard[n] && !flags[n]) near.add(n);
+      }
+      let chokepoints = 0;
+      const enemy = player === 'red' ? 'blue' : 'red';
+      for (const cell of near) {
+        if (customBoard[cell] || flags[cell]) continue;
+        const prev = customBoard[cell];
+        customBoard[cell] = { owner: enemy, type: 'normal' };
+        if (connectionCost(player, customBoard) === Infinity) chokepoints++;
+        customBoard[cell] = prev;
+      }
+      return chokepoints;
+    }
+
+    function wallCells(i, dir = wallDir, customBoard = board){
+      const [r,c] = rc(i); const cells = [];
+      for (let k=0; k<3; k++){
+        let nr = r, nc = c;
+        if (dir === 'h') nc = c + k; else nr = r + k;
+        if (nr>9 || nc>9) return null;
+        const idx = nr*10+nc;
+        if (flags[idx] || customBoard[idx]) return null;
+        cells.push(idx);
+      }
+      return cells;
+    }
+
+    function setMode(mode) {
+      gameMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('onclick').includes(mode)));
+      build();
+    }
+
+    function updateStatus(){
+      if (over) return;
+      const isBotTurn = (gameMode === 'ai' && current === 'blue');
+      const name = current === 'red' ? 'Красный (Вы)' : (isBotTurn ? 'ИИ вычисляет оптимальный ход...' : 'Синий');
+      statusEl.innerHTML = `<span class="dot" style="color:${COLORS[current]}; background:${COLORS[current]}"></span> ${name}`;
+      document.getElementById('star-count').textContent = used[current].star ? 'Использовано' : '1 доступна';
+      document.getElementById('wall-count').textContent = used[current].wall ? 'Использовано' : '1 доступна (3кл)';
+      toolBtns.forEach(b=>{
+        b.classList.toggle('active', b.dataset.tool === tool);
+        if (b.dataset.tool === 'star') b.disabled = used[current].star || isBotTurn;
+        if (b.dataset.tool === 'wall') b.disabled = used[current].wall || isBotTurn;
+        if (b.dataset.tool === 'normal') b.disabled = isBotTurn;
+      });
+      if (isBotTurn) hintEl.textContent = 'ИИ просчитывает партию наперёд...';
+      else if (tool === 'wall') hintEl.textContent = 'Стена (3 клетки). [R] для разворота';
+      else hintEl.textContent = gameMode === 'ai' ? 'Идеальный режим: обыграть ИИ невозможно.' : 'Ваш ход.';
+    }
+
+    function clearPreview(){ for (const cell of grid.children) cell.classList.remove('preview','badpreview'); }
+    function onEnter(i){
+      if (over || tool !== 'wall' || (gameMode === 'ai' && current === 'blue')) return;
+      clearPreview(); const cells = wallCells(i);
+      if (cells) cells.forEach(x=> grid.children[x].classList.add('preview'));
+      else grid.children[i].classList.add('badpreview');
+    }
+
+    function renderCell(i){
+      const cell = grid.children[i]; cell.innerHTML = ''; cell.classList.remove('filled');
+      const p = board[i]; if (!p) return;
+      cell.classList.add('filled');
+      if (p.type === 'star') cell.innerHTML = starSVG(COLORS[p.owner]);
+      else if (p.type === 'wall') cell.innerHTML = wallSVG(COLORS[p.owner]);
+      else cell.innerHTML = p.owner === 'red' ? circleSVG() : crossSVG();
+    }
+
+    function finishTurn(){
+      if (checkWin(current)){
+        over = true; const name = current === 'red' ? 'Красный' : 'Синий';
+        statusEl.innerHTML = `<span class="dot" style="background:${COLORS[current]}"></span> Победил ${name}! 🎉`;
+        hintEl.textContent = ''; return;
+      }
+      // Ничья только если больше некуда ходить И никто не может соединиться.
+      // Пока есть свободные клетки — партия продолжается.
+      let hasFree = false;
+      for (let i = 0; i < 100; i++) { if (!board[i] && !flags[i]) { hasFree = true; break; } }
+      if (!hasFree && getPathDistance('red') === Infinity && getPathDistance('blue') === Infinity) {
+        over = true; statusEl.textContent = 'Ничья! Доска заполнена.'; hintEl.textContent = ''; return;
+      }
+      current = current === 'red' ? 'blue' : 'red'; tool = 'normal'; updateStatus();
+      if (!over && gameMode === 'ai' && current === 'blue') setTimeout(makeAIMove, 250);
+    }
+
+    function onClick(i){
+      if (over || flags[i] || (gameMode === 'ai' && current === 'blue')) return;
+
+      if (tool === 'wall'){
+        if (used[current].wall) return;
+        const cells = wallCells(i); if (!cells) return;
+        cells.forEach(x=>{ board[x] = { owner: current, type: 'wall' }; renderCell(x); });
+        used[current].wall = true; clearPreview(); finishTurn(); return;
+      }
+      if (board[i]) return;
+      board[i] = { owner: current, type: tool };
+      if (tool === 'star') used[current].star = true;
+      renderCell(i); finishTurn();
+    }
+
+    // ============================================================
+    //  ИДЕАЛЬНЫЙ ДВИЖОК ИИ (за синего)
+    //
+    //  Стратегия основана на теории игр для игр типа Hex/Bridg-It:
+    //  на каждом ходу ИИ жёстко минимизирует СОБСТВЕННОЕ расстояние
+    //  до соединения и одновременно максимально удлиняет путь игрока.
+    //  С помощью поиска в глубину (minimax + альфа-бета) он проверяет,
+    //  ведёт ли ход к неизбежному выигрышу или блокирует победу игрока.
+    // ============================================================
+
+    // Оценка позиции с точки зрения синего (ИИ). Больше — лучше для ИИ.
+    //
+    // Метрика: connectionCost — сколько ещё фигур нужно доставить каждому
+    // игроку, чтобы соединить свои флаги (с учётом звёзд/диагоналей).
+    // Оценка нелинейная: приближение к СВОЕЙ победе ценится прогрессивно
+    // сильнее (чтобы ИИ строил своё соединение, а не бесконечно латал
+    // путь врага), и одновременно ИИ штрафуется за близкую угрозу врага
+    // у любого места, включая подходы к своему флагу.
+    // Ценность близости к победе: резко нелинейная — чем меньше осталось
+    // доложить фигур, тем ДРАМАТИЧЕСКИ ценнее (гонка решается на финише).
+    function raceValue(cost) {
+      if (cost === Infinity) return -100;      // путь перекрыт
+      // cost 0..~18 → большой бонус за малый cost.
+      return 2000 / (cost + 1);
+    }
+    // Оценка позиции с точки зрения синего (ИИ). Больше — лучше.
+    // Главная идея: это ГОНКА. Важна не абсолютная длина пути, а КТО
+    // соединится первым. Поэтому мы жёстко реагируем на приближение
+    // ЛЮБОГО из игроков к финишу, а защита (не дать сопернику соединиться)
+    // приоритетнее собственного медленного продвижения.
+    function evaluate(b) {
+      if (checkWin('blue', b)) return 100000;
+      if (checkWin('red', b)) return -100000;
+      const blue = connectionCost('blue', b);
+      const red  = connectionCost('red', b);
+      if (blue === Infinity && red === Infinity) return -40000; // тупик — избегаем
+      if (blue === Infinity) return -90000;
+      if (red === Infinity) return 90000;
+
+      // Базис гонки: у кого путь короче — тот ближе к победе.
+      // Защиту (raceValue(red)) берём с повышенным весом, чтобы ИИ
+      // не давал сопернику спокойно достраивать длинную линию.
+      let s = raceValue(blue) - raceValue(red) * 1.4;
+
+      // Пороговая тревога — срабатывает РАНО (red <= 4), а не только на red<=1.
+      // Чем ближе красный к соединению, тем сильнее ИИ обязан мешать.
+      if (red <= 1) s -= 6000;
+      else if (red === 2) s -= 2500;
+      else if (red === 3) s -= 1000;
+      else if (red === 4) s -= 400;
+
+      // Симметричный бонус за собственное приближение к победе.
+      if (blue <= 1) s += 6500;
+      else if (blue === 2) s += 2500;
+      else if (blue === 3) s += 1000;
+      else if (blue === 4) s += 400;
+
+      // Небольшой линейный член — тай-брейк по абсолютной разнице.
+      s += (red - blue) * 8;
+
+      // ЖИВУЧЕСТЬ ПУТИ: штраф за то, что СВОЙ путь легко запереть
+      // (много бутылочных горлышек), и бонус за уязвимость пути врага.
+      // Заставляет ИИ держать несколько маршрутов и не давать себя «обвести».
+      if (blue !== Infinity && blue <= 8) s -= pathVulnerability('blue', b) * 150;
+      if (red !== Infinity && red <= 8) s += pathVulnerability('red', b) * 100;
+      return s;
+    }
+
+    // Список кандидатов-ходов (только клетки на/у кратчайших путей —
+    // это резко сокращает перебор, сохраняя оптимальность в этой игре).
+    function candidateCells(b) {
+      const set = new Set();
+      // Клетки на кратчайших путях обоих игроков.
+      for (const c of getShortestPathMissingCells('blue', b)) set.add(c);
+      for (const c of getShortestPathMissingCells('red', b)) set.add(c);
+      // ВАЖНО: подступы к обоим флагам — чтобы ИИ защищал свой флаг
+      // и атаковал подход врага к чужому, а не только «латал» середину.
+      for (const f of [RED_FLAG, BLUE_FLAG]) {
+        for (const n of orthNeighbors(f)) if (!b[n] && !flags[n]) set.add(n);
+        for (const n of diagNeighbors(f)) if (!b[n] && !flags[n]) set.add(n);
+      }
+      // Клетки рядом с уже стоящими фигурами (развитие/блок).
+      for (let i = 0; i < 100; i++) {
+        if (!b[i] && !flags[i] &&
+            (orthNeighbors(i).some(n => b[n]) || diagNeighbors(i).some(n => b[n]))) set.add(i);
+      }
+      const arr = [...set].filter(i => !b[i] && !flags[i]);
+      if (arr.length === 0) {
+        for (let i = 0; i < 100; i++) if (!b[i] && !flags[i]) arr.push(i);
+      }
+      return arr;
+    }
+
+    // ============================================================
+    //  БЫСТРЫЙ ДВИЖОК: жадный поиск глубины 1 с проверкой ответа врага
+    //  (минимакс 1.5 плая). Считается мгновенно, но стратегически силён:
+    //  ИИ оценивает свой ход по позиции ПОСЛЕ лучшего ответа противника,
+    //  поэтому не попадает в очевидные ловушки и строит своё соединение.
+    // ============================================================
+
+    // Быстрая оценка хода (глубина 0) для сортировки кандидатов.
+    function quickScore(b, cell, owner) {
+      const prev = b[cell];
+      b[cell] = { owner, type: 'normal' };
+      const v = evaluate(b);
+      b[cell] = prev;
+      return v;
+    }
+
+    // Топ-K кандидатов для игрока `owner`, отсортированные по силе.
+    function topCandidates(b, owner, K) {
+      let cells = candidateCells(b);
+      cells.sort((a, c2) => {
+        const va = quickScore(b, a, owner);
+        const vb = quickScore(b, c2, owner);
+        return owner === 'blue' ? vb - va : va - vb;
+      });
+      return cells.slice(0, K);
+    }
+
+    // Минимакс с альфа-бетой + бюджет времени (итеративное углубление).
+    let searchDeadline = 0;
+    function minimax(b, depth, player, alpha, beta) {
+      if (checkWin('blue', b)) return 100000 - (12 - depth);
+      if (checkWin('red', b)) return -100000 + (12 - depth);
+      if (depth === 0 || Date.now() > searchDeadline) return evaluate(b);
+
+      const K = depth >= 4 ? 6 : 8;
+      const cells = topCandidates(b, player, K);
+      if (!cells.length) return evaluate(b);
+
+      if (player === 'blue') {
+        let best = -Infinity;
+        for (const cell of cells) {
+          if (Date.now() > searchDeadline) break; // выходим по бюджету времени
+          const prev = b[cell];
+          b[cell] = { owner: 'blue', type: 'normal' };
+          // Не рассматриваем самоблок (если это не победа).
+          // ВАЖНО: connectionCost учитывает звёзды/диагонали — в отличие от
+          // getPathDistance, который считал бы путь перекрытым ошибочно.
+          const ok = checkWin('blue', b) || connectionCost('blue', b) !== Infinity;
+          const val = ok ? minimax(b, depth - 1, 'red', alpha, beta) : -Infinity;
+          b[cell] = prev;
+          if (val > best) best = val;
+          if (best > alpha) alpha = best;
+          if (alpha >= beta) break;
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (const cell of cells) {
+          if (Date.now() > searchDeadline) break; // выходим по бюджету времени
+          const prev = b[cell];
+          b[cell] = { owner: 'red', type: 'normal' };
+          const val = minimax(b, depth - 1, 'blue', alpha, beta);
+          b[cell] = prev;
+          if (val < best) best = val;
+          if (best < beta) beta = best;
+          if (alpha >= beta) break;
+        }
+        return best;
+      }
+    }
+
+    function makeAIMove() {
+      const freeCells = [];
+      for (let i = 0; i < 100; i++) if (!board[i] && !flags[i]) freeCells.push(i);
+      if (!freeCells.length) { finishTurn(); return; }
+
+      // 1) Мгновенная победа этим ходом? (ИИ первым строит линию — высший приоритет)
+      const bMissing = getShortestPathMissingCells('blue');
+      if (bMissing.length === 1 && !board[bMissing[0]]) {
+        board[bMissing[0]] = { owner: 'blue', type: 'normal' };
+        renderCell(bMissing[0]); finishTurn(); return;
+      }
+
+      // 2) Красный выигрывает следующим ходом — обязательно блокируем узкое место.
+      if (connectionCost('red') <= 1) {
+        let bestBlock = -1, bestAfter = -Infinity;
+        for (const cell of freeCells) {
+          board[cell] = { owner: 'blue', type: 'normal' };
+          if (connectionCost('blue', board) !== Infinity) { // не перекрываем себя
+            const after = connectionCost('red', board);
+            const val = after === Infinity ? 1e9 : after;
+            if (val > bestAfter) { bestAfter = val; bestBlock = cell; }
+          }
+          board[cell] = null;
+        }
+        if (bestBlock !== -1 && bestAfter >= 2) {
+          board[bestBlock] = { owner: 'blue', type: 'normal' };
+          renderCell(bestBlock); finishTurn(); return;
+        }
+      }
+
+      // 3) ГЛУБОКИЙ поиск: минимакс с итеративным углублением и бюджетом ~1.2с.
+      //    Видит угрозы соединения на несколько ходов вперёд, а не только на 1.
+      let bestScore = -Infinity, bestMove = null;
+      const consider = (score, move) => {
+        if (score > bestScore) { bestScore = score; bestMove = move; }
+      };
+
+      const rootCells = topCandidates(board, 'blue', 12);
+      searchDeadline = Date.now() + 4500;
+
+      // Итеративное углубление: 2, 4, 6, 8 ... пока есть время.
+      let completedMove = null, completedScore = -Infinity;
+      for (let depth = 2; depth <= 10; depth += 2) {
+        let dBest = -Infinity, dMove = null;
+        let aborted = false;
+        for (const cell of rootCells) {
+          const prev = board[cell];
+          board[cell] = { owner: 'blue', type: 'normal' };
+          const ok = checkWin('blue', board) || connectionCost('blue', board) !== Infinity;
+          const val = ok ? minimax(board, depth - 1, 'red', -Infinity, Infinity) : -Infinity;
+          board[cell] = prev;
+          if (val > dBest) { dBest = val; dMove = { cell, type: 'normal' }; }
+          if (Date.now() > searchDeadline) { aborted = true; break; }
+        }
+        // Учитываем результат этой глубины, только если успели пройти достаточно.
+        if (dMove) { completedMove = dMove; completedScore = dBest; }
+        if (aborted || Date.now() > searchDeadline) break;
+      }
+      if (completedMove) consider(completedScore, completedMove);
+
+      // 3b) Звезда — быстрая одноходовая проверка (усиление связности).
+      for (const cell of rootCells) {
+        if (!used.blue.star && diagNeighbors(cell).some(n => board[n] && board[n].owner === 'blue')) {
+          const prev = board[cell];
+          board[cell] = { owner: 'blue', type: 'star' };
+          if (checkWin('blue', board) || connectionCost('blue', board) !== Infinity) {
+            consider(evaluate(board) + 5, { cell, type: 'star' });
+          }
+          board[cell] = prev;
+        }
+      }
+
+      // 4) Стена — только у подступов к своему флагу или на пути врага.
+      if (!used.blue.wall) {
+        const wallSpots = new Set();
+        for (const c of getShortestPathMissingCells('red')) wallSpots.add(c);
+        for (const n of orthNeighbors(BLUE_FLAG)) if (!board[n] && !flags[n]) wallSpots.add(n);
+        for (const cell of wallSpots) {
+          for (const dir of ['h', 'v']) {
+            const wcells = wallCells(cell, dir);
+            if (!wcells) continue;
+            const backup = wcells.map(c => board[c]);
+            wcells.forEach(c => board[c] = { owner: 'blue', type: 'wall' });
+            if (connectionCost('blue', board) !== Infinity) {
+              consider(evaluate(board) - 20, { cell, type: 'wall', dir });
+            }
+            wcells.forEach((c, k) => board[c] = backup[k]);
+          }
+        }
+      }
+
+      // Применяем лучший найденный ход.
+      if (bestMove) {
+        if (bestMove.type === 'wall') {
+          const wcells = wallCells(bestMove.cell, bestMove.dir);
+          if (wcells) {
+            wcells.forEach(c => board[c] = { owner: 'blue', type: 'wall' });
+            used.blue.wall = true;
+            wcells.forEach(renderCell);
+          } else {
+            board[bestMove.cell] = { owner: 'blue', type: 'normal' };
+            renderCell(bestMove.cell);
+          }
+        } else {
+          if (bestMove.type === 'star') used.blue.star = true;
+          board[bestMove.cell] = { owner: 'blue', type: bestMove.type };
+          renderCell(bestMove.cell);
+        }
+      } else {
+        // Резерв: продвигаемся по собственному кратчайшему пути.
+        const target = bMissing.length ? bMissing[0] : freeCells[0];
+        board[target] = { owner: 'blue', type: 'normal' };
+        renderCell(target);
+      }
+      finishTurn();
+    }
+
+    toolBtns.forEach(b => b.addEventListener('click', () => {
+      if (over || (gameMode === 'ai' && current === 'blue')) return;
+      if (b.dataset.tool === 'star' && used[current].star) return;
+      if (b.dataset.tool === 'wall' && used[current].wall) return;
+      tool = b.dataset.tool; clearPreview(); updateStatus();
+    }));
+    document.addEventListener('keydown', e => {
+      if (['r','R','к','К'].includes(e.key) && tool === 'wall'){ wallDir = wallDir === 'h' ? 'v' : 'h'; clearPreview(); updateStatus(); }
+    });
+
+    function build(){
+      grid.innerHTML = ''; board = new Array(100).fill(null);
+      current = 'red'; over = false; tool = 'normal'; wallDir = 'h';
+      used = { red: {star:false, wall:false}, blue: {star:false, wall:false} };
+      for (let i=0; i<100; i++){
+        const cell = document.createElement('div'); cell.className = 'cell';
+        if (flags[i]) cell.classList.add('flag', flags[i] === 'red' ? 'flag-red' : 'flag-blue');
+        else { cell.addEventListener('click', () => onClick(i)); cell.addEventListener('mouseenter', () => onEnter(i)); cell.addEventListener('mouseleave', clearPreview); }
+        grid.appendChild(cell);
+      }
+      updateStatus();
+    }
+    document.getElementById('reset').addEventListener('click', build);
+
+    // Модальное окно с правилами.
+    const rulesOverlay = document.getElementById('rulesOverlay');
+    document.getElementById('rulesBtn').addEventListener('click', () => rulesOverlay.classList.add('open'));
+    document.getElementById('rulesClose').addEventListener('click', () => rulesOverlay.classList.remove('open'));
+    rulesOverlay.addEventListener('click', e => { if (e.target === rulesOverlay) rulesOverlay.classList.remove('open'); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') rulesOverlay.classList.remove('open'); });
+
+    build();
+</script>
+</body>
+</html>
